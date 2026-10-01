@@ -1,4 +1,4 @@
-const CACHE_NAME = "proof-static-v2";
+const CACHE_NAME = "proof-static-v4";
 const APP_SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.json", "./favicon.svg", "./favicon.ico", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (event) => {

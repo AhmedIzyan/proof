@@ -9,24 +9,12 @@ const dayKey = (offset) => {
 const prettyDate = (date = new Date()) => new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(date);
 const shortDay = (date) => new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
 const defaultState = () => {
-  const checkins = {};
-  [-4, -3, -2, -1].forEach((offset, index) => { checkins[dayKey(offset)] = ["A solid start to the week.", "Got through my reading list.", "Moved my body and cleared my head.", "Back on track after a slow day."][index]; });
-  const activity = [55, 110, 35, 90, 70, 125, 0].map((minutes, index) => ({ date: dayKey(index - 6), minutes, hour: [18, 16, 20, 17, 19, 15, 0][index] }));
   return {
-    account: null,
-    user: null,
-    goals: [
-      { id: "study", title: "Study for midterms", category: "Study", target: 120, unit: "min", progress: 45, progressDate: todayKey(), color: COLORS[0] },
-      { id: "move", title: "Move your body", category: "Wellbeing", target: 1, unit: "session", progress: 0, progressDate: todayKey(), color: COLORS[1] },
-      { id: "assignment", title: "Finish lab assignment", category: "Coursework", target: 3, unit: "steps", progress: 1, progressDate: todayKey(), color: COLORS[2] }
-    ],
-    checkins,
-    activity,
-    challenges: [
-      { id: "sprint", title: "7-day study streak", detail: "Show up for 25 minutes a day", days: 7, joined: true, progress: 4, people: ["JD", "MK", "AS", "RL"], kind: "STUDY SPRINT" },
-      { id: "move-together", title: "Move more, together", detail: "Get outside 4 times this week", days: 7, joined: false, progress: 2, people: ["MK", "AS", "RL"], kind: "WELLBEING" }
-    ],
-    session: { remaining: 25 * 60, endAt: null, goalId: "study", duration: 25 }
+    goals: [],
+    checkins: {},
+    activity: [],
+    challenges: [],
+    session: { remaining: 25 * 60, endAt: null, goalId: "", duration: 25 }
   };
 };
 
@@ -35,7 +23,12 @@ function loadState() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) return defaultState();
     const parsed = JSON.parse(saved);
-    return { ...defaultState(), ...parsed, account: parsed.account || parsed.user || null, session: { ...defaultState().session, ...parsed.session } };
+    const state = { ...defaultState(), ...parsed, session: { ...defaultState().session, ...parsed.session } };
+    const hadSavedCredentials = Boolean(parsed.account || parsed.user);
+    delete state.account;
+    delete state.user;
+    if (hadSavedCredentials) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return state;
   } catch {
     return defaultState();
   }
@@ -77,22 +70,24 @@ function getWeekActivity() {
     const date = new Date();
     date.setDate(date.getDate() + index - 6);
     const key = dayKey(index - 6);
-    return { date, key, minutes: map.get(key)?.minutes || 0, today: index === 6 };
+    return { date, key, minutes: safeInteger(map.get(key)?.minutes, 0, 100000), today: index === 6 };
   });
 }
 
-function goalPercent(goal) { return Math.min(100, Math.round((goal.progress / goal.target) * 100)); }
-function formatGoalProgress(goal) {
-  if (goal.unit === "min") return `${Math.floor(goal.progress / 60)}h ${String(goal.progress % 60).padStart(2, "0")}m`;
-  return `${goal.progress} / ${goal.target}`;
+function safeInteger(value, fallback = 0, maximum = 100000) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(maximum, Math.floor(number))) : fallback;
 }
+function goalProgress(goal) { return safeInteger(goal.progress); }
+function goalTarget(goal) { return Math.max(1, safeInteger(goal.target, 1)); }
+function challengeProgress(challenge) { return safeInteger(challenge.progress); }
+function challengeDays(challenge) { return Math.max(1, safeInteger(challenge.days, 1, 365)); }
+function goalPercent(goal) { return Math.min(100, Math.round((goalProgress(goal) / goalTarget(goal)) * 100)); }
 function formatMinutes(minutes) { return `${Math.floor(minutes / 60)}h ${minutes % 60}m`; }
 function escapeHTML(value) {
-  return String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 }
-function initials(name) {
-  return String(name).trim().split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "?";
-}
+function safeColor(value, fallback = COLORS[0]) { return /^#[\da-f]{6}$/i.test(value) ? value : fallback; }
 function selectedGoal() { return state.goals.find((goal) => goal.id === state.session.goalId) || state.goals.find((goal) => goal.unit === "min") || state.goals[0]; }
 function remainingSeconds() {
   if (!state.session.endAt) return state.session.remaining;
@@ -111,9 +106,9 @@ function render() {
   document.querySelector("#todayDate").textContent = prettyDate().toUpperCase();
   document.querySelector("#sideStreak").textContent = `${streakCount()} day streak`;
   document.querySelector("#challengeCount").textContent = state.challenges.filter((challenge) => challenge.joined).length;
-  document.querySelector("#profileAvatar").textContent = state.user ? initials(state.user.name) : "?";
-  document.querySelector("#profileName").textContent = state.user ? state.user.name : "Create your account";
-  document.querySelector("#profilePlan").textContent = state.user ? state.user.email : "Save your progress locally";
+  document.querySelector("#profileAvatar").textContent = "P";
+  document.querySelector("#profileName").textContent = "Local demo profile";
+  document.querySelector("#profilePlan").textContent = "No password or account stored";
   if (currentView === "today") viewRoot.innerHTML = renderToday();
   if (currentView === "goals") viewRoot.innerHTML = renderGoals();
   if (currentView === "challenges") viewRoot.innerHTML = renderChallenges();
@@ -135,9 +130,9 @@ function renderToday() {
   const week = getWeekActivity();
   const maxMinutes = Math.max(120, ...week.map((day) => day.minutes));
   const days = week.map((day) => `<div class="chart-day ${day.today ? "today" : ""}" title="${day.minutes} minutes"><div class="bar-slot"><div class="chart-bar" style="height:${Math.max(day.minutes ? 5 : 0, Math.round((day.minutes / maxMinutes) * 100))}%"></div></div><span class="day-label">${day.today ? "TODAY" : shortDay(day.date).toUpperCase()}</span><span class="chart-tooltip">${day.minutes ? `${day.minutes}m` : "–"}</span></div>`).join("");
-  const progressRows = goals.map((goal) => `<div class="goal-progress-row"><div class="goal-name"><span class="goal-dot" style="background:${goal.color}"></span><span>${escapeHTML(goal.title)}</span></div><div class="goal-mini-track"><div class="goal-mini-fill" style="width:${goalPercent(goal)}%;background:${goal.color}"></div></div><span class="goal-value">${goal.unit === "min" ? `${goal.progress}m` : `${goal.progress}/${goal.target}`}</span></div>`).join("");
+  const progressRows = goals.map((goal, index) => { const color = safeColor(goal.color, COLORS[index % COLORS.length]); return `<div class="goal-progress-row"><div class="goal-name"><span class="goal-dot" style="background:${color}"></span><span>${escapeHTML(goal.title)}</span></div><div class="goal-mini-track"><div class="goal-mini-fill" style="width:${goalPercent(goal)}%;background:${color}"></div></div><span class="goal-value">${goal.unit === "min" ? `${goalProgress(goal)}m` : `${goalProgress(goal)}/${goalTarget(goal)}`}</span></div>`; }).join("");
   const activeChallenge = state.challenges.find((challenge) => challenge.joined);
-  const sessionOptions = state.goals.filter((goal) => goal.unit === "min").map((goal) => `<option value="${goal.id}" ${goal.id === state.session.goalId ? "selected" : ""}>${escapeHTML(goal.title)}</option>`).join("");
+  const sessionOptions = state.goals.filter((goal) => goal.unit === "min").map((goal) => `<option value="${escapeHTML(goal.id)}" ${goal.id === state.session.goalId ? "selected" : ""}>${escapeHTML(goal.title)}</option>`).join("");
   return `${renderHeading(dateHeading, "Make today count.", "A little proof, every day. Pick up where you left off.")}
     <div class="dashboard-grid"><div class="main-stack">
       <section class="panel welcome-panel"><div class="welcome-copy"><div class="eyebrow">YOUR ${weekday} CHECK-IN</div><h1>${checkin ? "You showed up today." : "Good things take showing up."}</h1><p>${checkin ? "One honest check-in. One more day of momentum." : "You don't need a perfect day. Just one you can point to."}</p></div><button class="button button-lime" data-action="${checkin ? "edit-checkin" : "check-in"}">${checkin ? "Update check-in" : "Check in today"}<span aria-hidden="true">↗</span></button></section>
@@ -147,7 +142,7 @@ function renderToday() {
     </div><div class="side-stack">
       <section class="panel streak-panel"><div class="streak-top"><div class="eyebrow">YOUR STREAK</div><span class="streak-spark" aria-hidden="true">✳</span></div><div class="streak-count"><strong>${streakCount()}</strong><span>days</span></div><p>You're building a rhythm. Keep it going.</p><div class="streak-days">${renderStreakDays()}</div></section>
       <section class="panel focus-panel"><div class="panel-head"><div><h2 class="panel-title">Focus session</h2><p class="panel-subtitle">One thing. A little less noise.</p></div></div><div class="focus-content"><div><select class="focus-select" id="focusGoal" aria-label="Goal for focus session">${sessionOptions || `<option value="">Create a minutes-based goal first</option>`}</select><div class="focus-controls"><button class="button button-dark" data-action="toggle-timer">${state.session.endAt ? "Pause" : remainingSeconds() < state.session.duration * 60 ? "Resume" : "Start focus"}</button><button class="button button-light" data-action="stop-timer">Finish</button></div></div><div class="timer-face"><span class="timer-digits" id="timerDigits">${timerText()}</span><span class="timer-state" id="timerState">${state.session.endAt ? "IN FOCUS" : "25 MINUTES"}</span></div></div></section>
-      <section class="panel challenge-card"><div class="panel-head"><h2 class="panel-title">A little friendly pressure</h2><button class="text-link" data-view="challenges">All</button></div>${activeChallenge ? `<div class="challenge-art"><div><span>${escapeHTML(activeChallenge.title)}</span><br><small>${activeChallenge.progress} OF ${activeChallenge.days} DAYS</small></div><div class="avatar-stack">${activeChallenge.people.slice(0, 3).map((person) => `<span class="tiny-avatar">${escapeHTML(person)}</span>`).join("")}<span class="avatar-more">+2</span></div></div><div class="challenge-detail"><strong>${escapeHTML(activeChallenge.detail)}</strong><span>${activeChallenge.progress} day streak</span></div><div class="challenge-progress"><span style="width:${Math.min(100, Math.round(activeChallenge.progress / activeChallenge.days * 100))}%"></span></div>` : `<p class="panel-subtitle">Join a private challenge to stay accountable with friends.</p><button class="button button-light" data-view="challenges">Explore challenges</button>`}</section>
+      <section class="panel challenge-card"><div class="panel-head"><h2 class="panel-title">A little friendly pressure</h2><button class="text-link" data-view="challenges">All</button></div>${activeChallenge ? `<div class="challenge-art"><div><span>${escapeHTML(activeChallenge.title)}</span><br><small>${challengeProgress(activeChallenge)} OF ${challengeDays(activeChallenge)} DAYS</small></div><div class="avatar-stack">${activeChallenge.people.slice(0, 3).map((person) => `<span class="tiny-avatar">${escapeHTML(person)}</span>`).join("")}<span class="avatar-more">+2</span></div></div><div class="challenge-detail"><strong>${escapeHTML(activeChallenge.detail)}</strong><span>${challengeProgress(activeChallenge)} day streak</span></div><div class="challenge-progress"><span style="width:${Math.min(100, Math.round(challengeProgress(activeChallenge) / challengeDays(activeChallenge) * 100))}%"></span></div>` : `<p class="panel-subtitle">Join a private challenge to stay accountable with friends.</p><button class="button button-light" data-view="challenges">Explore challenges</button>`}</section>
     </div></div>`;
 }
 
@@ -165,15 +160,16 @@ function renderStreakDays() {
 function renderGoals() {
   const cards = state.goals.map((goal, index) => {
     const classes = ["", "blue", "orange", "pink"];
-    const unitLabel = goal.unit === "min" ? `${goal.progress} min of ${goal.target} min today` : `${goal.progress} of ${goal.target} ${goal.unit} today`;
-    return `<article class="goal-card"><div class="goal-symbol ${classes[index % classes.length]}">${goal.unit === "min" ? "◷" : goal.category === "Wellbeing" ? "+" : "✓"}</div><div class="goal-card-copy"><h3>${escapeHTML(goal.title)}</h3><p>${escapeHTML(goal.category)} · ${unitLabel}</p><div class="goal-card-track"><span style="width:${goalPercent(goal)}%"></span></div></div><div class="goal-card-end"><span class="goal-card-count"><strong>${goalPercent(goal)}%</strong><br>today</span><button class="icon-button" data-action="complete-goal" data-id="${goal.id}" title="Log progress for ${escapeHTML(goal.title)}" aria-label="Log progress for ${escapeHTML(goal.title)}">+</button></div></article>`;
+    const unitLabel = goal.unit === "min" ? `${goalProgress(goal)} min of ${goalTarget(goal)} min today` : `${goalProgress(goal)} of ${goalTarget(goal)} ${escapeHTML(goal.unit)} today`;
+    return `<article class="goal-card"><div class="goal-symbol ${classes[index % classes.length]}">${goal.unit === "min" ? "◷" : goal.category === "Wellbeing" ? "+" : "✓"}</div><div class="goal-card-copy"><h3>${escapeHTML(goal.title)}</h3><p>${escapeHTML(goal.category)} · ${unitLabel}</p><div class="goal-card-track"><span style="width:${goalPercent(goal)}%"></span></div></div><div class="goal-card-end"><span class="goal-card-count"><strong>${goalPercent(goal)}%</strong><br>today</span><button class="icon-button" data-action="complete-goal" data-id="${escapeHTML(goal.id)}" title="Log progress for ${escapeHTML(goal.title)}" aria-label="Log progress for ${escapeHTML(goal.title)}">+</button></div></article>`;
   }).join("");
   return `${renderHeading("MAKE IT MEASURABLE", "Goals that move you.", "Keep the big picture. Make the next step small.", `<button class="button button-dark button-small" data-action="new-goal"><span class="button-plus">+</span> New goal</button>`)}<div class="panel panel-pad"><div class="panel-head"><div><h2 class="panel-title">Your active goals</h2><p class="panel-subtitle">A small, visible step beats a perfect plan.</p></div><span class="metric-label">${state.goals.length} ACTIVE</span></div><div class="goal-list">${cards || `<div class="empty-state"><strong>No goals yet</strong><p>Make your first goal easy to start today.</p><button class="button button-dark button-small" data-action="new-goal">Create a goal</button></div>`}</div></div>`;
 }
 
 function renderChallenges() {
-  const cards = state.challenges.map((challenge) => `<article class="panel challenge-wide"><div class="eyebrow">${escapeHTML(challenge.kind)}</div><div class="challenge-art"><div><span>${escapeHTML(challenge.title)}</span><br><small>${challenge.progress} OF ${challenge.days} DAYS</small></div><div class="avatar-stack">${challenge.people.map((person) => `<span class="tiny-avatar">${escapeHTML(person)}</span>`).join("")}<span class="avatar-more">+${challenge.joined ? "2" : "1"}</span></div></div><div class="challenge-detail"><strong>${escapeHTML(challenge.detail)}</strong><span>${challenge.joined ? `${challenge.progress} of ${challenge.days} days complete` : `${challenge.days} days · private group`}</span></div><div class="challenge-progress"><span style="width:${Math.min(100, Math.round(challenge.progress / challenge.days * 100))}%"></span></div><div class="challenge-wide-foot"><span>${challenge.joined ? "You're in this challenge" : "Created by Maya K."}</span><button class="button ${challenge.joined ? "button-light" : "button-dark"}" data-action="${challenge.joined ? "leave-challenge" : "join-challenge"}" data-id="${challenge.id}">${challenge.joined ? "Leave challenge" : "Join challenge"}</button></div></article>`).join("");
-  return `${renderHeading("BETTER, TOGETHER", "Keep each other going.", "Private challenges make showing up a little more fun.", `<button class="button button-dark button-small" data-action="new-challenge"><span class="button-plus">+</span> Create challenge</button>`)}<div class="challenge-list">${cards}</div>`;
+  const cards = state.challenges.map((challenge) => `<article class="panel challenge-wide"><div class="eyebrow">${escapeHTML(challenge.kind)}</div><div class="challenge-art"><div><span>${escapeHTML(challenge.title)}</span><br><small>${challengeProgress(challenge)} OF ${challengeDays(challenge)} DAYS</small></div><div class="avatar-stack">${challenge.people.map((person) => `<span class="tiny-avatar">${escapeHTML(person)}</span>`).join("")}<span class="avatar-more">+${challenge.joined ? "2" : "1"}</span></div></div><div class="challenge-detail"><strong>${escapeHTML(challenge.detail)}</strong><span>${challenge.joined ? `${challengeProgress(challenge)} of ${challengeDays(challenge)} days complete` : `${challengeDays(challenge)} days · private group`}</span></div><div class="challenge-progress"><span style="width:${Math.min(100, Math.round(challengeProgress(challenge) / challengeDays(challenge) * 100))}%"></span></div><div class="challenge-wide-foot"><span>${challenge.joined ? "You're in this challenge" : "Created by Maya K."}</span><button class="button ${challenge.joined ? "button-light" : "button-dark"}" data-action="${challenge.joined ? "leave-challenge" : "join-challenge"}" data-id="${escapeHTML(challenge.id)}">${challenge.joined ? "Leave challenge" : "Join challenge"}</button></div></article>`).join("");
+  const content = cards || `<div class="empty-state"><strong>No challenges yet</strong><p>Create a private challenge to start building momentum with friends.</p><button class="button button-dark button-small" data-action="new-challenge">Create challenge</button></div>`;
+  return `${renderHeading("BETTER, TOGETHER", "Keep each other going.", "Private challenges make showing up a little more fun.", `<button class="button button-dark button-small" data-action="new-challenge"><span class="button-plus">+</span> Create challenge</button>`)}<div class="challenge-list">${content}</div>`;
 }
 
 function buildWeeklyReport() {
@@ -232,14 +228,8 @@ function openChallengeDialog() {
   document.querySelector("#challengeTitle").focus();
 }
 
-function openAuthDialog(mode = state.user ? "account" : "signup") {
-  if (mode === "account" && state.user) {
-    setDialog("Your account", "YOUR PROOF SPACE", `<div class="account-summary"><span class="account-summary-avatar">${escapeHTML(initials(state.user.name))}</span><div><strong>${escapeHTML(state.user.name)}</strong><span>${escapeHTML(state.user.email)}</span></div></div><p class="dialog-hint account-hint">This MVP saves your account and progress in this browser. A production version would connect this to secure authentication and cloud sync.</p>`, `<button type="button" class="button button-light" data-action="sign-out">Sign out</button><button type="button" class="button button-dark" data-action="close-dialog">Done</button>`);
-    return;
-  }
-  const signIn = mode === "signin";
-  setDialog(signIn ? "Welcome back" : "Create your account", signIn ? "SIGN IN TO PROOF" : "START YOUR PROOF SPACE", `<div class="auth-tabs"><button type="button" class="auth-tab ${signIn ? "" : "active"}" data-action="switch-auth" data-mode="signup">Create account</button><button type="button" class="auth-tab ${signIn ? "active" : ""}" data-action="switch-auth" data-mode="signin">Sign in</button></div>${signIn ? "" : `<div class="form-field"><label for="accountName">Your name</label><input id="accountName" name="name" placeholder="e.g. Jamie Davis" autocomplete="name" maxlength="50" required></div>`}<div class="form-field"><label for="accountEmail">Email address</label><input id="accountEmail" name="email" type="email" placeholder="you@example.com" autocomplete="email" required></div><div class="form-field"><label for="accountPassword">Password</label><input id="accountPassword" name="password" type="password" placeholder="At least 6 characters" minlength="6" autocomplete="${signIn ? "current-password" : "new-password"}" required></div><p class="dialog-hint account-hint">Demo account only: your details stay in this browser and are not sent anywhere.</p>`, `<button type="button" class="button button-light" data-action="close-dialog">Cancel</button><button class="button button-dark" type="submit" value="${signIn ? "sign-in" : "create-account"}">${signIn ? "Sign in" : "Create account"}</button>`);
-  document.querySelector("#accountEmail").focus();
+function openAuthDialog() {
+  setDialog("Accounts aren't enabled yet", "LOCAL DEMO MODE", `<p class="dialog-hint">Proof stores demo goals and check-ins only in this browser. It does not collect passwords or create public accounts. Secure sign-in and cross-device sync will be enabled after a real authentication backend is configured.</p>`, `<button type="button" class="button button-dark" data-action="close-dialog">Got it</button>`);
 }
 
 function updateTimerUI() {
@@ -306,8 +296,6 @@ document.addEventListener("click", (event) => {
   if (action === "check-in" || action === "edit-checkin") openCheckinDialog();
   if (action === "new-challenge") openChallengeDialog();
   if (action === "account") openAuthDialog();
-  if (action === "switch-auth") openAuthDialog(actionButton.dataset.mode);
-  if (action === "sign-out") { state.user = null; saveState(); dialog.close(); render(); showToast("Signed out of this browser."); }
   if (action === "close-dialog") dialog.close();
   if (action === "toggle-timer") state.session.endAt ? pauseTimer() : startTimer();
   if (action === "stop-timer") finishTimer();
@@ -352,26 +340,6 @@ document.querySelector("#dialogForm").addEventListener("submit", (event) => {
     state.challenges.unshift({ id: `challenge-${Date.now()}`, title, detail: `Show up together for ${data.get("days")} days`, days: Number(data.get("days")), joined: true, progress: 0, people: ["JD"], kind: "YOUR CHALLENGE" });
     saveState(); dialog.close(); currentView = "challenges"; render(); showToast("Challenge created. Invite a friend to join.");
   }
-  if (submitter === "create-account") {
-    const name = String(data.get("name") || "").trim();
-    const email = String(data.get("email") || "").trim().toLowerCase();
-    const password = String(data.get("password") || "");
-    if (!name || !email || password.length < 6) return;
-    state.account = { name, email, password };
-    state.user = { name, email };
-    saveState(); dialog.close(); render(); showToast(`Welcome to Proof, ${name.split(" ")[0]}.`);
-  }
-  if (submitter === "sign-in") {
-    const email = String(data.get("email") || "").trim().toLowerCase();
-    const password = String(data.get("password") || "");
-    if (!state.account || state.account.email !== email || state.account.password !== password) {
-      showToast("That email or password does not match this browser.");
-      return;
-    }
-    state.user = { name: state.account.name, email: state.account.email };
-    saveState();
-    dialog.close(); render(); showToast(`Welcome back, ${state.user.name.split(" ")[0]}.`);
-  }
 });
 
 document.querySelector("#appDialog").addEventListener("click", (event) => {
@@ -386,5 +354,9 @@ setInterval(() => {
   }
   if (state.session.endAt) updateTimerUI();
 }, 1000);
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
 
 render();

@@ -9,7 +9,7 @@ This is a static MVP with local browser persistence. It includes:
 - Daily check-ins and streaks
 - Private challenge UI
 - Weekly coaching report and Proof Score
-- Local create-account, sign-in, and sign-out flow
+- Local-only demo profile; no passwords or public accounts are collected
 - Installable app shell with offline asset caching
 
 ## PWA Builder checklist
@@ -44,4 +44,6 @@ Upload the folder to any static host such as GitHub Pages, Netlify, Vercel, or C
 
 For automatic GitHub Pages deployment, set the repository's **Settings → Pages → Build and deployment → Source** to **GitHub Actions**. The workflow in `.github/workflows/pages.yml` deploys the static site whenever a commit is pushed to `main`.
 
-The account flow is intentionally local for this MVP. Before using real users, replace it with a server-backed authentication provider and never store passwords in `localStorage`.
+Proof is a static, client-side demo. Goals and check-ins are stored in this browser and can be edited by the device owner; they are not secure evidence and must not be used for public leaderboards or trusted verification. The app does not collect passwords. Real accounts, private data, and cross-device sync require a backend authentication provider, server-side authorization, and database row-level security.
+
+The page applies a restrictive Content Security Policy as defense in depth. No website can be guaranteed unhackable. GitHub Pages cannot set every recommended HTTP response header (including header-only frame protections); use a host that supports security headers and complete a security review before collecting personal data.
