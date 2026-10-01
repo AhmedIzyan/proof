@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f6f2">
+    <meta name="description" content="Proof turns your everyday goals into progress you can see.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="manifest" href="manifest.json">
+    <title>Proof | Progress, made visible</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="app.js" defer></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+      }
+    </script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Main navigation">
+        <a class="brand" href="#today" aria-label="Proof home">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span>proof<span class="brand-period">.</span></span>
+        </a>
+        <div class="side-label">YOUR SPACE</div>
+        <nav class="primary-nav">
+          <button class="nav-link active" data-view="today"><span class="nav-icon icon-today" aria-hidden="true"></span><span>Today</span><span class="nav-indicator"></span></button>
+          <button class="nav-link" data-view="goals"><span class="nav-icon icon-goals" aria-hidden="true"></span><span>My goals</span></button>
+          <button class="nav-link" data-view="challenges"><span class="nav-icon icon-challenges" aria-hidden="true"></span><span>Challenges</span><span class="nav-count" id="challengeCount">2</span></button>
+          <button class="nav-link" data-view="insights"><span class="nav-icon icon-insights" aria-hidden="true"></span><span>Insights</span></button>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="sidebar-streak"><span class="streak-spark" aria-hidden="true">✳</span><div><strong id="sideStreak">4 day streak</strong><span>Small steps add up.</span></div></div>
+          <button class="profile-row" data-action="account" aria-label="Open account"><span class="profile-avatar" id="profileAvatar">?</span><span class="profile-copy"><strong id="profileName">Create your account</strong><span id="profilePlan">Save your progress locally</span></span><span class="profile-arrow" aria-hidden="true">↗</span></button>
+        </div>
+      </aside>
+
+      <main class="main-area">
+        <header class="topbar">
+          <div class="mobile-brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>proof<span class="brand-period">.</span></div>
+          <div class="breadcrumb"><span>MY SPACE</span><span class="crumb-slash">/</span><strong id="crumbTitle">Today</strong></div>
+          <div class="topbar-actions"><span class="today-date" id="todayDate"></span><button class="button button-dark button-small" data-action="new-goal"><span class="button-plus">+</span> New goal</button></div>
+        </header>
+        <section class="view-root" id="viewRoot" aria-live="polite"></section>
+      </main>
+    </div>
+
+    <dialog class="app-dialog" id="appDialog" aria-labelledby="dialogTitle">
+      <form id="dialogForm" method="dialog">
+        <div class="dialog-head"><div><div class="eyebrow" id="dialogEyebrow">MAKE IT COUNT</div><h2 id="dialogTitle">New goal</h2></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="Close dialog">×</button></div>
+        <div id="dialogBody"></div>
+        <div class="dialog-actions" id="dialogActions"></div>
+      </form>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

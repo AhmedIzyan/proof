@@ -1,0 +1,17 @@
+{
+  "name": "Proof | Progress, made visible",
+  "short_name": "Proof",
+  "description": "Turn everyday goals into progress you can see.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f4f6f2",
+  "theme_color": "#173528",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
