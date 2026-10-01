@@ -12,6 +12,22 @@ This is a static MVP with local browser persistence. It includes:
 - Local create-account, sign-in, and sign-out flow
 - Installable app shell with offline asset caching
 
+## PWA Builder checklist
+
+Proof includes the requirements PWABuilder needs:
+
+- HTTPS deployment through GitHub Pages or another static host
+- `manifest.json` with `id`, `start_url`, `scope`, standalone display, colors, and portrait orientation
+- Explicit 192px and 512px PNG icons, including a maskable 512px icon
+- Registered service worker with cached app shell and offline navigation fallback
+- Apple touch icon for iOS home-screen installation
+
+Run PWABuilder against the deployed HTTPS URL, not localhost:
+
+```text
+https://ahmedizyan.github.io/proof/
+```
+
 ## Run locally
 
 Serve the folder over HTTP. Opening `index.html` directly will prevent the service worker from installing.

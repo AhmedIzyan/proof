@@ -1,5 +1,5 @@
-const CACHE_NAME = "proof-static-v1";
-const APP_SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.json", "./favicon.svg"];
+const CACHE_NAME = "proof-static-v2";
+const APP_SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.json", "./favicon.svg", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
@@ -13,11 +13,14 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
-    if (event.request.url.startsWith(self.location.origin)) {
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-    }
-    return response;
-  })));
+  event.respondWith(caches.match(event.request).then((cached) => {
+    if (cached) return cached;
+    return fetch(event.request).then((response) => {
+      if (event.request.url.startsWith(self.location.origin) && response.ok) {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+      }
+      return response;
+    }).catch(() => event.request.mode === "navigate" ? caches.match("./index.html") : Response.error());
+  }));
 });
