@@ -42,4 +42,6 @@ Then open `http://localhost:4173`.
 
 Upload the folder to any static host such as GitHub Pages, Netlify, Vercel, or Cloudflare Pages. No build step is required.
 
+For automatic GitHub Pages deployment, set the repository's **Settings → Pages → Build and deployment → Source** to **GitHub Actions**. The workflow in `.github/workflows/pages.yml` deploys the static site whenever a commit is pushed to `main`.
+
 The account flow is intentionally local for this MVP. Before using real users, replace it with a server-backed authentication provider and never store passwords in `localStorage`.
